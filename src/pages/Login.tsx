@@ -46,34 +46,15 @@ export const Login = () => {
   return (
     <Layout showHeader={false}>
       <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-md w-full space-y-8">
-          {/* Logo and Title */}
-          <div className="text-center">
-            <div className="mx-auto w-16 h-16 bg-gradient-to-br from-primary to-primary-glow rounded-xl flex items-center justify-center shadow-lg">
-              <LogIn className="h-8 w-8 text-white" />
-            </div>
-            <h2 className="mt-6 text-3xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
-              Welcome Back
-            </h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Sign in to your MLM Platform account
-            </p>
-          </div>
-
-          {/* Login Form */}
-          <Card className="shadow-xl border-0 bg-gradient-to-br from-card to-card/80 backdrop-blur-sm">
+        <div className="max-w-md w-full">
+          <Card className="shadow-xl border-0">
             <CardHeader className="space-y-1">
               <CardTitle className="text-2xl font-bold text-center">Sign In</CardTitle>
-              <CardDescription className="text-center">
-                Enter your mobile number and password to access your account
-              </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="mobile" className="text-sm font-medium">
-                    Mobile Number
-                  </Label>
+                  <Label htmlFor="mobile">Mobile Number</Label>
                   <div className="relative">
                     <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -89,9 +70,7 @@ export const Login = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="password" className="text-sm font-medium">
-                    Password
-                  </Label>
+                  <Label htmlFor="password">Password</Label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -113,22 +92,6 @@ export const Login = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <input
-                      id="remember"
-                      type="checkbox"
-                      className="rounded border-gray-300 text-primary focus:ring-primary"
-                    />
-                    <Label htmlFor="remember" className="text-sm text-muted-foreground">
-                      Remember me
-                    </Label>
-                  </div>
-                  <Link to="/forgot-password" className="text-sm text-primary hover:text-primary-glow">
-                    Forgot password?
-                  </Link>
-                </div>
-
                 <CustomButton
                   type="submit"
                   variant="primary"
@@ -147,12 +110,9 @@ export const Login = () => {
               </form>
 
               <div className="mt-6 text-center">
-                <p className="text-sm text-muted-foreground">
-                  Don't have an account?{' '}
-                  <Link to="/register" className="font-medium text-primary hover:text-primary-glow">
-                    Sign up now
-                  </Link>
-                </p>
+                <Link to="/register" className="text-sm text-primary hover:text-primary-glow">
+                  Don't have an account? Sign up
+                </Link>
               </div>
             </CardContent>
           </Card>
