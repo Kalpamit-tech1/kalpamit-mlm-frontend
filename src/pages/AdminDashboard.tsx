@@ -483,103 +483,97 @@ export const AdminDashboard = () => {
               </Card>
             </div>
 
-            {/* Earnings Control */}
-            <div className="lg:col-span-1">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4" />
-                    Earnings Control
-                  </CardTitle>
-                  <CardDescription>Add or deduct user earnings</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Select User</Label>
-                    <Select onValueChange={(value) => setSelectedUser(users.find(u => u.id === value) || null)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Choose user" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {users.filter(user => user.kycStatus === 'approved').map(user => (
-                          <SelectItem key={user.id} value={user.id}>
-                            {user.name} - ₹{user.totalEarnings.toLocaleString()}
-                          </SelectItem>
+            {/* Earnings Control - Shows only when user is selected */}
+            {selectedUser && (
+              <div className="lg:col-span-1">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4" />
+                      Earnings Control
+                    </CardTitle>
+                    <CardDescription>Add or deduct earnings for {selectedUser.name}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="p-3 bg-accent/30 rounded-lg">
+                      <p className="font-semibold">{selectedUser.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Current: ₹{selectedUser.totalEarnings.toLocaleString()}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Available: ₹{selectedUser.availableBalance.toLocaleString()}
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Operation</Label>
+                      <Select value={earningsOperation} onValueChange={(value: 'add' | 'deduct') => setEarningsOperation(value)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="add">Add (+)</SelectItem>
+                          <SelectItem value="deduct">Deduct (-)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Amount</Label>
+                      <Input
+                        type="number"
+                        placeholder="Enter amount"
+                        value={earningsUpdate}
+                        onChange={(e) => setEarningsUpdate(e.target.value)}
+                      />
+                    </div>
+
+                    <CustomButton 
+                      variant={earningsOperation === 'add' ? 'default' : 'destructive'}
+                      className="w-full"
+                      onClick={handleEarningsUpdate}
+                      disabled={loading || !earningsUpdate}
+                    >
+                      {loading ? 'Processing...' : `${earningsOperation === 'add' ? 'Add' : 'Deduct'} ₹${earningsUpdate || '0'}`}
+                    </CustomButton>
+
+                    <CustomButton 
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => setSelectedUser(null)}
+                    >
+                      Clear Selection
+                    </CustomButton>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+              {/* Recent Activity - Show when no user is selected */}
+              {!selectedUser && (
+                <div className="lg:col-span-1">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Recent Activity</CardTitle>
+                      <CardDescription>Latest admin actions</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 max-h-60 overflow-y-auto">
+                        {adminActivity.slice(0, 5).map((activity, index) => (
+                          <div key={index} className="p-2 bg-accent/20 rounded text-sm">
+                            <p className="font-medium">{activity.action}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {activity.user} • {activity.time}
+                            </p>
+                          </div>
                         ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {selectedUser && (
-                    <>
-                      <div className="p-3 bg-accent/30 rounded-lg">
-                        <p className="font-semibold">{selectedUser.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          Current: ₹{selectedUser.totalEarnings.toLocaleString()}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          Available: ₹{selectedUser.availableBalance.toLocaleString()}
-                        </p>
                       </div>
-
-                      <div className="space-y-2">
-                        <Label>Operation</Label>
-                        <Select value={earningsOperation} onValueChange={(value: 'add' | 'deduct') => setEarningsOperation(value)}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="add">Add (+)</SelectItem>
-                            <SelectItem value="deduct">Deduct (-)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Amount</Label>
-                        <Input
-                          type="number"
-                          placeholder="Enter amount"
-                          value={earningsUpdate}
-                          onChange={(e) => setEarningsUpdate(e.target.value)}
-                        />
-                      </div>
-
-                      <CustomButton 
-                        variant={earningsOperation === 'add' ? 'default' : 'destructive'}
-                        className="w-full"
-                        onClick={handleEarningsUpdate}
-                        disabled={loading || !earningsUpdate}
-                      >
-                        {loading ? 'Processing...' : `${earningsOperation === 'add' ? 'Add' : 'Deduct'} ₹${earningsUpdate || '0'}`}
-                      </CustomButton>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Recent Activity */}
-              <Card className="mt-4">
-                <CardHeader>
-                  <CardTitle>Recent Activity</CardTitle>
-                  <CardDescription>Latest admin actions</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {adminActivity.slice(0, 5).map((activity, index) => (
-                      <div key={index} className="p-2 bg-accent/20 rounded text-sm">
-                        <p className="font-medium">{activity.action}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {activity.user} • {activity.time}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
             </div>
-          </div>
-        </TabsContent>
+          </TabsContent>
 
           <TabsContent value="withdrawals" className="space-y-4">
             <Card>
