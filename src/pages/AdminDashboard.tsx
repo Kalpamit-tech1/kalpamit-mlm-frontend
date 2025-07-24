@@ -142,6 +142,7 @@ export const AdminDashboard = () => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showUserModal, setShowUserModal] = useState(false);
   const [earningsUpdate, setEarningsUpdate] = useState('');
+  const [earningsOperation, setEarningsOperation] = useState<'add' | 'deduct'>('add');
   const [withdrawalUpdate, setWithdrawalUpdate] = useState('');
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -184,22 +185,34 @@ export const AdminDashboard = () => {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       const updateAmount = parseFloat(earningsUpdate);
+      const multiplier = earningsOperation === 'add' ? 1 : -1;
+      const finalAmount = updateAmount * multiplier;
+      
       setUsers(prev => prev.map(user => 
         user.id === selectedUser.id 
           ? { 
               ...user, 
-              totalEarnings: user.totalEarnings + updateAmount,
-              availableBalance: user.availableBalance + updateAmount
+              totalEarnings: Math.max(0, user.totalEarnings + finalAmount),
+              availableBalance: Math.max(0, user.availableBalance + finalAmount)
             }
           : user
       ));
+      
+      setAdminActivity(prev => [
+        { 
+          action: `${earningsOperation === 'add' ? 'Added' : 'Deducted'} ₹${updateAmount.toLocaleString()}`, 
+          user: selectedUser.name, 
+          time: 'just now' 
+        },
+        ...prev
+      ]);
       
       setEarningsUpdate('');
       setSelectedUser(null);
       
       toast({
         title: "Earnings Updated",
-        description: `Added ₹${updateAmount.toLocaleString()} to user's account`,
+        description: `${earningsOperation === 'add' ? 'Added' : 'Deducted'} ₹${updateAmount.toLocaleString()} ${earningsOperation === 'add' ? 'to' : 'from'} user's account`,
       });
     } finally {
       setLoading(false);
@@ -298,28 +311,30 @@ export const AdminDashboard = () => {
 
         {/* Main Admin Tabs */}
         <Tabs defaultValue="users" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="users">User Management</TabsTrigger>
             <TabsTrigger value="withdrawals">Withdrawal Requests</TabsTrigger>
-            <TabsTrigger value="earnings">Earnings Control</TabsTrigger>
             <TabsTrigger value="history">History</TabsTrigger>
           </TabsList>
 
           <TabsContent value="users" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>User Management</CardTitle>
-                <CardDescription>View and manage all platform users</CardDescription>
-                <div className="flex items-center space-x-2">
-                  <Search className="h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search users by name, mobile, or email..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="max-w-sm"
-                  />
-                </div>
-              </CardHeader>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* User List */}
+              <div className="lg:col-span-2">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>User Management</CardTitle>
+                    <CardDescription>View and manage all platform users</CardDescription>
+                    <div className="flex items-center space-x-2">
+                      <Search className="h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search users by name, mobile, or email..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="max-w-sm"
+                      />
+                    </div>
+                  </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   {filteredUsers.map((user) => (
@@ -464,9 +479,107 @@ export const AdminDashboard = () => {
                     </div>
                   </div>
                 )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Earnings Control */}
+            <div className="lg:col-span-1">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4" />
+                    Earnings Control
+                  </CardTitle>
+                  <CardDescription>Add or deduct user earnings</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Select User</Label>
+                    <Select onValueChange={(value) => setSelectedUser(users.find(u => u.id === value) || null)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose user" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {users.filter(user => user.kycStatus === 'approved').map(user => (
+                          <SelectItem key={user.id} value={user.id}>
+                            {user.name} - ₹{user.totalEarnings.toLocaleString()}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {selectedUser && (
+                    <>
+                      <div className="p-3 bg-accent/30 rounded-lg">
+                        <p className="font-semibold">{selectedUser.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          Current: ₹{selectedUser.totalEarnings.toLocaleString()}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Available: ₹{selectedUser.availableBalance.toLocaleString()}
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Operation</Label>
+                        <Select value={earningsOperation} onValueChange={(value: 'add' | 'deduct') => setEarningsOperation(value)}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="add">Add (+)</SelectItem>
+                            <SelectItem value="deduct">Deduct (-)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Amount</Label>
+                        <Input
+                          type="number"
+                          placeholder="Enter amount"
+                          value={earningsUpdate}
+                          onChange={(e) => setEarningsUpdate(e.target.value)}
+                        />
+                      </div>
+
+                      <CustomButton 
+                        variant={earningsOperation === 'add' ? 'default' : 'destructive'}
+                        className="w-full"
+                        onClick={handleEarningsUpdate}
+                        disabled={loading || !earningsUpdate}
+                      >
+                        {loading ? 'Processing...' : `${earningsOperation === 'add' ? 'Add' : 'Deduct'} ₹${earningsUpdate || '0'}`}
+                      </CustomButton>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Recent Activity */}
+              <Card className="mt-4">
+                <CardHeader>
+                  <CardTitle>Recent Activity</CardTitle>
+                  <CardDescription>Latest admin actions</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {adminActivity.slice(0, 5).map((activity, index) => (
+                      <div key={index} className="p-2 bg-accent/20 rounded text-sm">
+                        <p className="font-medium">{activity.action}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {activity.user} • {activity.time}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
 
           <TabsContent value="withdrawals" className="space-y-4">
             <Card>
@@ -492,85 +605,6 @@ export const AdminDashboard = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="earnings" className="space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Update Earnings */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Update User Earnings</CardTitle>
-                  <CardDescription>Add earnings to user accounts</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Select User</Label>
-                    <Select onValueChange={(value) => setSelectedUser(users.find(u => u.id === value) || null)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Choose user to update" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {users.filter(user => user.kycStatus === 'approved').map(user => (
-                          <SelectItem key={user.id} value={user.id}>
-                            {user.name} - ₹{user.totalEarnings.toLocaleString()}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {selectedUser && (
-                    <>
-                      <div className="p-3 bg-accent/30 rounded-lg">
-                        <p className="font-semibold">{selectedUser.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          Current earnings: ₹{selectedUser.totalEarnings.toLocaleString()}
-                        </p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Amount to Add</Label>
-                        <Input
-                          type="number"
-                          placeholder="Enter amount"
-                          value={earningsUpdate}
-                          onChange={(e) => setEarningsUpdate(e.target.value)}
-                        />
-                      </div>
-
-                      <CustomButton 
-                        variant="primary" 
-                        className="w-full"
-                        onClick={handleEarningsUpdate}
-                        disabled={loading || !earningsUpdate}
-                      >
-                        {loading ? 'Updating...' : 'Add Earnings'}
-                      </CustomButton>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Recent Activity */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Recent Admin Activity</CardTitle>
-                  <CardDescription>Latest administrative actions</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {adminActivity.map((activity, index) => (
-                      <div key={index} className="flex justify-between items-center p-3 bg-accent/30 rounded-lg">
-                        <div>
-                          <p className="font-medium">{activity.action}</p>
-                          <p className="text-sm text-muted-foreground">User: {activity.user}</p>
-                        </div>
-                        <p className="text-xs text-muted-foreground">{activity.time}</p>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
 
           <TabsContent value="history" className="space-y-4">
             <Card>
