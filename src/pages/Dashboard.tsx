@@ -4,6 +4,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { CustomButton } from '@/components/ui/custom-button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
 import { 
   DollarSign, 
   TrendingUp, 
@@ -20,7 +24,8 @@ import {
   User,
   Building,
   Hash,
-  Share2
+  Share2,
+  Wallet
 } from 'lucide-react';
 
 interface UserData {
@@ -100,6 +105,9 @@ export const Dashboard = () => {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [editingSection, setEditingSection] = useState<null | 'personal' | 'bank'>(null);
+  const [withdrawalAmount, setWithdrawalAmount] = useState('');
+  const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false);
+  const { toast } = useToast();
   const [editPersonal, setEditPersonal] = useState({
     name: userData?.name,
     mobile: userData?.mobile,
@@ -153,11 +161,45 @@ export const Dashboard = () => {
   // Calculate total team (all levels)
   const totalTeam = Object.values(userData.downline).reduce((total, level) => total + level.length, 0);
   
+  // Calculate available balance (total earnings minus any withdrawals - using mock for now)
+  const availableBalance = totalEarnings * 0.8; // 80% of total earnings available for withdrawal
+  
   // Determine rank based on team size
   const getRank = (teamSize: number) => {
     if (teamSize >= 50) return { name: 'Gold', color: 'bg-yellow-500 text-yellow-900' };
     if (teamSize >= 20) return { name: 'Silver', color: 'bg-gray-400 text-gray-900' };
     return { name: 'Bronze', color: 'bg-orange-500 text-orange-900' };
+  };
+
+  const handleWithdrawalRequest = () => {
+    const amount = parseFloat(withdrawalAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast({
+        title: "Invalid Amount",
+        description: "Please enter a valid withdrawal amount",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    if (amount > availableBalance) {
+      toast({
+        title: "Insufficient Balance",
+        description: `Maximum withdrawable amount is ₹${availableBalance.toLocaleString()}`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Simulate withdrawal request
+    toast({
+      title: "Withdrawal Requested",
+      description: `Your withdrawal request for ₹${amount.toLocaleString()} has been submitted.`,
+      variant: "default"
+    });
+    
+    setWithdrawalAmount('');
+    setIsWithdrawalModalOpen(false);
   };
 
   const getStatusColor = (status: string) => {
@@ -218,7 +260,17 @@ export const Dashboard = () => {
         )}
 
         {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
+          <Card className="bg-gradient-to-br from-card to-success/10 border-success/30">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Available Balance</CardTitle>
+              <Wallet className="h-4 w-4 text-success" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-success">₹{availableBalance.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground">Ready for withdrawal</p>
+            </CardContent>
+          </Card>
           <Card className="bg-gradient-to-br from-card to-primary/5 border-primary/20">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Plan Amount</CardTitle>
@@ -445,10 +497,55 @@ export const Dashboard = () => {
                   <CardDescription>Manage your account and earnings</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <CustomButton variant="primary" className="w-full">
-                    <Download className="h-4 w-4" />
-                    Request Withdrawal
-                  </CustomButton>
+                  <Dialog open={isWithdrawalModalOpen} onOpenChange={setIsWithdrawalModalOpen}>
+                    <DialogTrigger asChild>
+                      <CustomButton variant="primary" className="w-full">
+                        <Download className="h-4 w-4" />
+                        Request Withdrawal
+                      </CustomButton>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Request Withdrawal</DialogTitle>
+                        <DialogDescription>
+                          Enter the amount you want to withdraw. Your available balance is ₹{availableBalance.toLocaleString()}.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="amount" className="text-right">
+                            Amount
+                          </Label>
+                          <Input
+                            id="amount"
+                            type="number"
+                            placeholder="Enter amount"
+                            value={withdrawalAmount}
+                            onChange={(e) => setWithdrawalAmount(e.target.value)}
+                            max={availableBalance}
+                            className="col-span-3"
+                          />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label className="text-right text-sm text-muted-foreground">
+                            Max Amount:
+                          </Label>
+                          <span className="col-span-3 text-sm font-medium">₹{availableBalance.toLocaleString()}</span>
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <CustomButton 
+                          variant="outline" 
+                          onClick={() => setIsWithdrawalModalOpen(false)}
+                        >
+                          Cancel
+                        </CustomButton>
+                        <CustomButton onClick={handleWithdrawalRequest}>
+                          Request Withdrawal
+                        </CustomButton>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
                   <CustomButton variant="outline" className="w-full">
                     <Share2 className="h-4 w-4" />
                     Share Referral Link
