@@ -99,6 +99,22 @@ const mockUserData: UserData = {
 export const Dashboard = () => {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [editingSection, setEditingSection] = useState<null | 'personal' | 'bank'>(null);
+  const [editPersonal, setEditPersonal] = useState({
+    name: userData?.name,
+    mobile: userData?.mobile,
+    email: userData?.email,
+    sex: userData?.sex,
+    state: userData?.state,
+    district: userData?.district,
+    pinCode: userData?.pinCode,
+  });
+  const [editBank, setEditBank] = useState({
+    bankName: userData?.bankDetails.bankName,
+    accountNumber: userData?.bankDetails.accountNumber,
+    ifscCode: userData?.bankDetails.ifscCode,
+    branchName: userData?.bankDetails.branchName,
+  });
 
   useEffect(() => {
     // Simulate API call
@@ -269,80 +285,156 @@ export const Dashboard = () => {
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="team">Team</TabsTrigger>
-            <TabsTrigger value="withdrawals">Withdrawals</TabsTrigger>
+            <TabsTrigger value="history">History</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Personal Details */}
               <Card>
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle className="flex items-center space-x-2">
                     <User className="h-5 w-5" />
                     <span>Personal Details</span>
                   </CardTitle>
+                  {editingSection !== 'personal' && (
+                    <CustomButton size="sm" className="ml-2" onClick={() => setEditingSection('personal')}>Edit</CustomButton>
+                  )}
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Name:</span>
-                    <span>{userData.name}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Mobile:</span>
-                    <span>{userData.mobile}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Email:</span>
-                    <span className="text-right text-sm">{userData.email}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Sex:</span>
-                    <span>{userData.sex}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">State:</span>
-                    <span>{userData.state}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">District:</span>
-                    <span>{userData.district}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Pin Code:</span>
-                    <span>{userData.pinCode}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Joining Date:</span>
-                    <span>{new Date(userData.joinedDate).toLocaleDateString()}</span>
-                  </div>
+                  {editingSection === 'personal' ? (
+                    <>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Name:</span>
+                        <input className="input input-bordered input-sm w-40" value={editPersonal.name} onChange={e => setEditPersonal(v => ({...v, name: e.target.value}))} />
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Mobile:</span>
+                        <input className="input input-bordered input-sm w-40" value={editPersonal.mobile} onChange={e => setEditPersonal(v => ({...v, mobile: e.target.value}))} />
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Email:</span>
+                        <input className="input input-bordered input-sm w-40" value={editPersonal.email} onChange={e => setEditPersonal(v => ({...v, email: e.target.value}))} />
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Sex:</span>
+                        <input className="input input-bordered input-sm w-40" value={editPersonal.sex} onChange={e => setEditPersonal(v => ({...v, sex: e.target.value}))} />
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">State:</span>
+                        <input className="input input-bordered input-sm w-40" value={editPersonal.state} onChange={e => setEditPersonal(v => ({...v, state: e.target.value}))} />
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">District:</span>
+                        <input className="input input-bordered input-sm w-40" value={editPersonal.district} onChange={e => setEditPersonal(v => ({...v, district: e.target.value}))} />
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Pin Code:</span>
+                        <input className="input input-bordered input-sm w-40" value={editPersonal.pinCode} onChange={e => setEditPersonal(v => ({...v, pinCode: e.target.value}))} />
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Joining Date:</span>
+                        <span>{new Date(userData.joinedDate).toLocaleDateString()}</span>
+                      </div>
+                      <div className="flex gap-2 justify-end">
+                        <CustomButton size="sm" variant="outline" onClick={() => setEditingSection(null)}>Cancel</CustomButton>
+                        <CustomButton size="sm" onClick={() => setEditingSection(null)}>Save</CustomButton>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Name:</span>
+                        <span>{userData.name}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Mobile:</span>
+                        <span>{userData.mobile}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Email:</span>
+                        <span className="text-right text-sm">{userData.email}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Sex:</span>
+                        <span>{userData.sex}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">State:</span>
+                        <span>{userData.state}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">District:</span>
+                        <span>{userData.district}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Pin Code:</span>
+                        <span>{userData.pinCode}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Joining Date:</span>
+                        <span>{new Date(userData.joinedDate).toLocaleDateString()}</span>
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
 
               {/* Bank Details */}
               <Card>
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle className="flex items-center space-x-2">
                     <Building className="h-5 w-5" />
                     <span>Bank Details</span>
                   </CardTitle>
+                  {editingSection !== 'bank' && (
+                    <CustomButton size="sm" className="ml-2" onClick={() => setEditingSection('bank')}>Edit</CustomButton>
+                  )}
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Bank Name:</span>
-                    <span className="text-right text-sm">{userData.bankDetails.bankName}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">A/C No.:</span>
-                    <span className="text-right text-sm font-mono">{userData.bankDetails.accountNumber}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">IFSC Code:</span>
-                    <span className="text-right text-sm font-mono">{userData.bankDetails.ifscCode}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Branch Name:</span>
-                    <span className="text-right text-sm">{userData.bankDetails.branchName}</span>
-                  </div>
+                  {editingSection === 'bank' ? (
+                    <>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Bank Name:</span>
+                        <input className="input input-bordered input-sm w-40" value={editBank.bankName} onChange={e => setEditBank(v => ({...v, bankName: e.target.value}))} />
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">A/C No.:</span>
+                        <input className="input input-bordered input-sm w-40" value={editBank.accountNumber} onChange={e => setEditBank(v => ({...v, accountNumber: e.target.value}))} />
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">IFSC Code:</span>
+                        <input className="input input-bordered input-sm w-40" value={editBank.ifscCode} onChange={e => setEditBank(v => ({...v, ifscCode: e.target.value}))} />
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Branch Name:</span>
+                        <input className="input input-bordered input-sm w-40" value={editBank.branchName} onChange={e => setEditBank(v => ({...v, branchName: e.target.value}))} />
+                      </div>
+                      <div className="flex gap-2 justify-end">
+                        <CustomButton size="sm" variant="outline" onClick={() => setEditingSection(null)}>Cancel</CustomButton>
+                        <CustomButton size="sm" onClick={() => setEditingSection(null)}>Save</CustomButton>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Bank Name:</span>
+                        <span className="text-right text-sm">{userData.bankDetails.bankName}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">A/C No.:</span>
+                        <span className="text-right text-sm font-mono">{userData.bankDetails.accountNumber}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">IFSC Code:</span>
+                        <span className="text-right text-sm font-mono">{userData.bankDetails.ifscCode}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Branch Name:</span>
+                        <span className="text-right text-sm">{userData.bankDetails.branchName}</span>
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
 
@@ -368,91 +460,53 @@ export const Dashboard = () => {
 
           <TabsContent value="team" className="space-y-4">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Level 1 Team */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Users className="h-5 w-5" />
-                    <span>Level 1 Team ({userData.downline.level1.length})</span>
-                  </CardTitle>
-                  <CardDescription>Direct referrals</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {userData.downline.level1.map((member) => (
-                      <div key={member.id} className="flex justify-between items-center p-3 bg-accent/30 rounded-lg">
-                        <div>
-                          <p className="font-medium">{member.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            <Calendar className="inline h-3 w-3 mr-1" />
-                            {new Date(member.joinedDate).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-success">₹{member.earnings.toLocaleString()}</p>
-                          <p className="text-xs text-muted-foreground">Total earnings</p>
-                        </div>
+              {/* Render all 7 levels */}
+              {[1,2,3,4,5,6,7].map((level) => {
+                const members = userData.downline[`level${level}` as keyof typeof userData.downline] as Array<{ id: string; name: string }>;
+                return (
+                  <Card key={level}>
+                    <CardHeader>
+                      <CardTitle className="flex items-center space-x-2">
+                        <Users className="h-5 w-5" />
+                        <span>{`Level ${level} Team (${members.length})`}</span>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {members.length === 0 ? (
+                          <p className="text-muted-foreground text-sm">No members in this level.</p>
+                        ) : (
+                          members.map((member) => (
+                            <div key={member.id} className="p-3 bg-accent/30 rounded-lg">
+                              <p className="font-medium">{member.name}</p>
+                            </div>
+                          ))
+                        )}
                       </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Level 2 Team */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Network className="h-5 w-5" />
-                    <span>Level 2 Team ({userData.downline.level2.length})</span>
-                  </CardTitle>
-                  <CardDescription>Indirect referrals</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {userData.downline.level2.map((member) => (
-                      <div key={member.id} className="flex justify-between items-center p-3 bg-accent/30 rounded-lg">
-                        <div>
-                          <p className="font-medium">{member.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            <Calendar className="inline h-3 w-3 mr-1" />
-                            {new Date(member.joinedDate).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-success">₹{member.earnings.toLocaleString()}</p>
-                          <p className="text-xs text-muted-foreground">Total earnings</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           </TabsContent>
 
-          <TabsContent value="withdrawals" className="space-y-4">
+          <TabsContent value="history" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Withdrawal History</CardTitle>
-                <CardDescription>Track your withdrawal requests and status</CardDescription>
+                <CardTitle>History</CardTitle>
+                <CardDescription>All transactions</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {/* Mock withdrawal history */}
+                  {/* Mock history data */}
                   {[
-                    { id: 1, amount: 5000, status: 'completed', date: '2024-07-15', txnId: 'TXN123456' },
-                    { id: 2, amount: 2500, status: 'pending', date: '2024-07-20', txnId: 'TXN123457' },
-                    { id: 3, amount: 3000, status: 'processing', date: '2024-07-22', txnId: 'TXN123458' },
-                  ].map((withdrawal) => (
-                    <div key={withdrawal.id} className="flex justify-between items-center p-4 border rounded-lg">
-                      <div>
-                        <p className="font-semibold">₹{withdrawal.amount.toLocaleString()}</p>
-                        <p className="text-sm text-muted-foreground">TXN: {withdrawal.txnId}</p>
-                        <p className="text-sm text-muted-foreground">{withdrawal.date}</p>
-                      </div>
-                      <Badge variant={getStatusColor(withdrawal.status) as any}>
-                        {withdrawal.status.charAt(0).toUpperCase() + withdrawal.status.slice(1)}
-                      </Badge>
+                    { id: 1, amount: 5000, status: '+', date: '2024-07-15' },
+                    { id: 2, amount: 2500, status: '-', date: '2024-07-20' },
+                    { id: 3, amount: 3000, status: '-', date: '2024-07-22' },
+                  ].map((item) => (
+                    <div key={item.id} className="flex justify-between items-center p-4 border rounded-lg">
+                      <span className="font-semibold">{item.date}</span>
+                      <span className={`font-semibold ${item.status === '+' ? 'text-success' : 'text-destructive'}`}>{item.status}{' '}₹{item.amount.toLocaleString()}</span>
                     </div>
                   ))}
                 </div>
