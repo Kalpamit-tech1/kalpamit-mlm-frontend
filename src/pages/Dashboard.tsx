@@ -79,6 +79,10 @@ export const Dashboard = () => {
   const { toast } = useToast();
   const { logout } = useAuth();
   const navigate = useNavigate();
+  const [selectedTab, setSelectedTab] = useState<string>("overview");
+  const [teamDownline, setTeamDownline] = useState<any>(null);
+  const [teamLoading, setTeamLoading] = useState(false);
+  const [teamError, setTeamError] = useState<string | null>(null);
 
   // Add a type guard at the top of the component
   function isCodeObj(val: unknown): val is { code: string; name?: string } {
@@ -207,6 +211,39 @@ export const Dashboard = () => {
 
     return () => unsubscribe();
   }, [navigate]);
+
+  // Fetch team data when Team tab is selected
+  useEffect(() => {
+    if (selectedTab === "team" && !teamDownline && currentUser) {
+      setTeamLoading(true);
+      setTeamError(null);
+      fetch(`https://mlm-backend-f0h4.onrender.com/team?firebase_uid=${currentUser.uid}`)
+        .then(async (res) => {
+          if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}));
+            throw new Error(errorData.message || `HTTP ${res.status}: Failed to fetch team data`);
+          }
+          return res.json();
+        })
+        .then((data) => {
+          // Map backend keys to frontend keys (only levels 1-3)
+          const mapped = {};
+          for (let i = 1; i <= 3; i++) {
+            const backendKey = `level_${i}`;
+            const frontendKey = `level${i}`;
+            mapped[frontendKey] = (data[backendKey] || []).map((member: any) => ({
+              id: member.referral_code,
+              name: member.name,
+            }));
+          }
+          setTeamDownline(mapped);
+        })
+        .catch((err) => {
+          setTeamError(err.message || "Failed to load team data");
+        })
+        .finally(() => setTeamLoading(false));
+    }
+  }, [selectedTab, currentUser, teamDownline]);
 
   const [editPersonal, setEditPersonal] = useState({
     name: '',
@@ -511,13 +548,13 @@ export const Dashboard = () => {
                   {getRank(totalTeam).name}
                 </Badge>
               </div>
-              <p className="text-xs text-muted-foreground">Up to 7 levels</p>
+              <p className="text-xs text-muted-foreground">Up to 3 levels</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Main Content Tabs */}
-        <Tabs defaultValue="overview" className="space-y-4">
+        <Tabs defaultValue="overview" value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="team">Team</TabsTrigger>
@@ -790,40 +827,50 @@ export const Dashboard = () => {
           </TabsContent>
 
           <TabsContent value="team" className="space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Render all 7 levels */}
-              {[1,2,3,4,5,6,7].map((level) => {
-                const members = userData.downline?.[`level${level}` as keyof typeof userData.downline] as Array<{ id: string; name: string }> || [];
-                return (
-                  <Card key={level}>
-                    <CardHeader>
-                      <CardTitle className="flex items-center space-x-2">
-                        <Users className="h-5 w-5" />
-                        <span>{`Level ${level} Team (${members.length})`}</span>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        {members.length === 0 ? (
-                          <p className="text-muted-foreground text-sm">No members in this level.</p>
-                        ) : (
-                          members.map((member) => (
-                            <div key={member.id} className="p-3 bg-accent/30 rounded-lg">
-                              <div className="flex justify-between items-center">
-                                <p className="font-medium">{member.name}</p>
-                                <Badge variant="outline" className="text-xs">
-                                  ID: {member.id}
-                                </Badge>
+            {teamLoading ? (
+              <div className="flex items-center justify-center min-h-[200px]">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mr-2"></div>
+                <span>Loading team data...</span>
+              </div>
+            ) : teamError ? (
+              <div className="flex flex-col items-center justify-center min-h-[200px] text-destructive">
+                <p className="font-semibold">{teamError}</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {[1,2,3].map((level) => {
+                  const members = (teamDownline ? teamDownline[`level${level}`] : userData.downline?.[`level${level}` as keyof typeof userData.downline]) || [];
+                  return (
+                    <Card key={level}>
+                      <CardHeader>
+                        <CardTitle className="flex items-center space-x-2">
+                          <Users className="h-5 w-5" />
+                          <span>{`Level ${level} Team (${members.length})`}</span>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          {members.length === 0 ? (
+                            <p className="text-muted-foreground text-sm">No members in this level.</p>
+                          ) : (
+                            members.map((member: any) => (
+                              <div key={member.id} className="p-3 bg-accent/30 rounded-lg">
+                                <div className="flex justify-between items-center">
+                                  <p className="font-medium">{member.name}</p>
+                                  <Badge variant="outline" className="text-xs">
+                                    ID: {member.id}
+                                  </Badge>
+                                </div>
                               </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
+                            ))
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="history" className="space-y-4">
