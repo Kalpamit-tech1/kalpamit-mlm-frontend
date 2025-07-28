@@ -5,37 +5,38 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomButton } from '@/components/ui/custom-button';
 import { useToast } from '@/hooks/use-toast';
-import { LogIn, Phone, Lock, Eye, EyeOff } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { LogIn, Phone, Lock, Eye, EyeOff, Mail } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 
 export const Login = () => {
   const [formData, setFormData] = useState({
-    mobile: '',
+    email: '',
     password: ''
   });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // TODO: Integrate with authentication service
-      await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate API call
+      await signInWithEmailAndPassword(auth, formData.email, formData.password);
       
       toast({
         title: "Login Successful",
         description: "Welcome back to MLM Platform",
       });
       
-      // Redirect to dashboard
-      window.location.href = '/dashboard';
-    } catch (error) {
+      navigate('/dashboard');
+    } catch (error: any) {
       toast({
         title: "Login Failed",
-        description: "Invalid credentials. Please try again.",
+        description: error.message || "Invalid credentials. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -54,15 +55,15 @@ export const Login = () => {
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="mobile">Mobile Number</Label>
+                  <Label htmlFor="email">Email Address</Label>
                   <div className="relative">
-                    <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
-                      id="mobile"
-                      type="tel"
-                      placeholder="+91 9876543210"
-                      value={formData.mobile}
-                      onChange={(e) => setFormData(prev => ({ ...prev, mobile: e.target.value }))}
+                      id="email"
+                      type="email"
+                      placeholder="Enter your email"
+                      value={formData.email}
+                      onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
                       className="pl-10"
                       required
                     />

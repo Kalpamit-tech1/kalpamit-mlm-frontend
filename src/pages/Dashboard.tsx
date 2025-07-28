@@ -8,6 +8,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 import { 
   DollarSign, 
   TrendingUp, 
@@ -25,30 +29,34 @@ import {
   Building,
   Hash,
   Share2,
-  Wallet
+  Wallet,
+  LogOut,
+  AlertCircle
 } from 'lucide-react';
 
 interface UserData {
   id: string;
+  firebase_uid: string;
   name: string;
-  mobile: string;
   email: string;
-  sex: string;
-  state: string;
-  district: string;
-  pinCode: string;
-  kycStatus: 'pending' | 'approved' | 'rejected';
-  planAmount: number;
-  joinedDate: string;
-  referralCode: string;
-  referredBy: { code: string; name: string };
-  bankDetails: {
+  reference_code?: string;
+  mobile?: string;
+  sex?: string;
+  state?: string;
+  district?: string;
+  pinCode?: string;
+  kycStatus?: 'pending' | 'approved' | 'rejected';
+  planAmount?: number;
+  joinedDate?: string;
+  referralCode?: string;
+  referredBy?: { code: string; name: string } | string;
+  bankDetails?: {
     bankName: string;
     accountNumber: string;
     ifscCode: string;
     branchName: string;
   };
-  downline: {
+  downline?: {
     level1: Array<{ id: string; name: string; earnings: number; joinedDate: string }>;
     level2: Array<{ id: string; name: string; earnings: number; joinedDate: string }>;
     level3: Array<{ id: string; name: string; earnings: number; joinedDate: string }>;
@@ -57,112 +65,251 @@ interface UserData {
     level6: Array<{ id: string; name: string; earnings: number; joinedDate: string }>;
     level7: Array<{ id: string; name: string; earnings: number; joinedDate: string }>;
   };
+  payment_status?: boolean; // Added payment_status
 }
-
-const mockUserData: UserData = {
-  id: 'user123',
-  name: 'John Doe',
-  mobile: '+91 9876543210',
-  email: 'john.doe@example.com',
-  sex: 'Male',
-  state: 'Maharashtra',
-  district: 'Mumbai',
-  pinCode: '400001',
-  kycStatus: 'approved',
-  planAmount: 50000,
-  joinedDate: '2024-01-15',
-  referralCode: 'MLM123ABC',
-  referredBy: { code: 'MLM456DEF', name: 'Jane Smith' },
-  bankDetails: {
-    bankName: 'State Bank of India',
-    accountNumber: '1234567890123456',
-    ifscCode: 'SBIN0001234',
-    branchName: 'Mumbai Main Branch'
-  },
-  downline: {
-    level1: [
-      { id: '1', name: 'Alice Smith', earnings: 5200.00, joinedDate: '2024-02-01' },
-      { id: '2', name: 'Bob Johnson', earnings: 3150.25, joinedDate: '2024-02-15' },
-      { id: '3', name: 'Carol Davis', earnings: 4850.50, joinedDate: '2024-03-01' },
-    ],
-    level2: [
-      { id: '4', name: 'David Wilson', earnings: 2100.00, joinedDate: '2024-03-10' },
-      { id: '5', name: 'Eva Brown', earnings: 1850.75, joinedDate: '2024-03-15' },
-      { id: '6', name: 'Frank Miller', earnings: 2750.25, joinedDate: '2024-04-01' },
-      { id: '7', name: 'Grace Lee', earnings: 1950.50, joinedDate: '2024-04-10' },
-    ],
-    level3: [
-      { id: '8', name: 'Henry Clark', earnings: 1200.00, joinedDate: '2024-04-15' },
-    ],
-    level4: [],
-    level5: [],
-    level6: [],
-    level7: []
-  }
-};
 
 export const Dashboard = () => {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState(null);
   const [editingSection, setEditingSection] = useState<null | 'personal' | 'bank'>(null);
   const [withdrawalAmount, setWithdrawalAmount] = useState('');
   const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false);
   const { toast } = useToast();
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  // Add a type guard at the top of the component
+  function isCodeObj(val: unknown): val is { code: string; name?: string } {
+    return val !== null && typeof val === 'object' && 'code' in val && typeof (val as any).code === 'string';
+  }
+
+  // Fetch user data from backend
+  const fetchUserData = async (firebaseUid: string) => {
+    try {
+      console.log('🔍 Fetching user data for Firebase UID:', firebaseUid);
+      setLoading(true);
+      setError(null);
+
+      // First, let's try to ping the server to check if it's accessible
+      console.log('🏓 Pinging server...');
+      
+      const response = await fetch(`https://mlm-backend-f0h4.onrender.com/user_data/${firebaseUid}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        mode: 'cors', // Explicitly set CORS mode
+        cache: 'no-cache',
+      });
+
+      console.log('📡 Backend response status:', response.status);
+      console.log('📡 Backend response ok:', response.ok);
+      console.log('📡 Backend response headers:', response.headers);
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('User data not found in database. Please contact support.');
+        }
+        if (response.status === 0) {
+          throw new Error('Network error: Cannot connect to server. Please check your internet connection.');
+        }
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ Backend error response:', errorData);
+        throw new Error(errorData.message || `HTTP ${response.status}: Failed to fetch user data`);
+      }
+
+      const result = await response.json();
+      console.log('✅ Backend success response:', result);
+      
+      // Transform the data to match our interface
+      const transformedUserData: UserData = {
+        id: result.id || result.firebase_uid,
+        firebase_uid: result.firebase_uid,
+        name: result.name,
+        email: result.email,
+        referralCode: result.referral_code, // restore this
+        reference_code: result.reference_code, // keep this
+        referredBy: result.referred_by,
+        payment_status: result.payment_status,
+        mobile: result.mobile || '+91 XXXXXXXXXX',
+        sex: result.sex || 'Not specified',
+        state: result.state || 'Not specified',
+        district: result.district || 'Not specified',
+        pinCode: result.pinCode || 'Not specified',
+        kycStatus: result.kycStatus || 'pending',
+        planAmount: result.planAmount || 50000,
+        joinedDate: result.created_at || result.joinedDate || new Date().toISOString(),
+        bankDetails: result.bankDetails || {
+          bankName: 'Not provided',
+          accountNumber: 'Not provided',
+          ifscCode: 'Not provided',
+          branchName: 'Not provided'
+        },
+        downline: result.downline || {
+          level1: [],
+          level2: [],
+          level3: [],
+          level4: [],
+          level5: [],
+          level6: [],
+          level7: []
+        }
+      };
+
+      setUserData(transformedUserData);
+      console.log('🎉 User data set successfully:', transformedUserData);
+
+    } catch (error: any) {
+      console.error('💥 Failed to fetch user data:', error);
+      console.error('💥 Error name:', error.name);
+      console.error('💥 Error message:', error.message);
+      console.error('💥 Error stack:', error.stack);
+      
+      let errorMessage = error.message;
+      
+      // Handle specific error types
+      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+        errorMessage = `CORS Error: Unable to connect to backend server. This might be due to:
+        1. Server CORS configuration issue
+        2. Network connectivity problem  
+        3. Server being temporarily down
+        
+        The POST request worked during registration, so this might be a temporary issue.`;
+      }
+      
+      setError(errorMessage);
+      toast({
+        title: "Failed to load user data",
+        description: "There's a connectivity issue with the backend server. Please try again in a few moments.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Listen for auth state changes
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      console.log('🔐 Auth state changed:', user);
+      if (user) {
+        setCurrentUser(user);
+        fetchUserData(user.uid);
+      } else {
+        setCurrentUser(null);
+        setUserData(null);
+        navigate('/login');
+      }
+    });
+
+    return () => unsubscribe();
+  }, [navigate]);
+
   const [editPersonal, setEditPersonal] = useState({
-    name: userData?.name,
-    mobile: userData?.mobile,
-    email: userData?.email,
-    sex: userData?.sex,
-    state: userData?.state,
-    district: userData?.district,
-    pinCode: userData?.pinCode,
-  });
-  const [editBank, setEditBank] = useState({
-    bankName: userData?.bankDetails.bankName,
-    accountNumber: userData?.bankDetails.accountNumber,
-    ifscCode: userData?.bankDetails.ifscCode,
-    branchName: userData?.bankDetails.branchName,
+    name: '',
+    mobile: '',
+    email: '',
+    sex: '',
+    state: '',
+    district: '',
+    pinCode: '',
   });
 
+  const [editBank, setEditBank] = useState({
+    bankName: '',
+    accountNumber: '',
+    ifscCode: '',
+    branchName: '',
+  });
+
+  // Update edit states when userData changes
   useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      setUserData(mockUserData);
-      setLoading(false);
-    }, 1000);
-  }, []);
+    if (userData) {
+      setEditPersonal({
+        name: userData.name || '',
+        mobile: userData.mobile || '',
+        email: userData.email || '',
+        sex: userData.sex || '',
+        state: userData.state || '',
+        district: userData.district || '',
+        pinCode: userData.pinCode || '',
+      });
+      
+      setEditBank({
+        bankName: userData.bankDetails?.bankName || '',
+        accountNumber: userData.bankDetails?.accountNumber || '',
+        ifscCode: userData.bankDetails?.ifscCode || '',
+        branchName: userData.bankDetails?.branchName || '',
+      });
+    }
+  }, [userData]);
 
   if (loading) {
     return (
       <Layout title="Dashboard">
-        <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          <p className="text-muted-foreground">Loading your dashboard...</p>
         </div>
       </Layout>
     );
   }
 
-  if (!userData) return null;
+  if (error) {
+    return (
+      <Layout title="Dashboard">
+        <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+          <AlertCircle className="h-16 w-16 text-destructive" />
+          <div className="text-center space-y-2">
+            <h2 className="text-xl font-semibold">Unable to load dashboard</h2>
+            <p className="text-muted-foreground max-w-md">{error}</p>
+            <div className="flex gap-2 justify-center">
+              <CustomButton 
+                onClick={() => currentUser && fetchUserData(currentUser.uid)}
+                variant="outline"
+              >
+                Try Again
+              </CustomButton>
+              <CustomButton 
+                onClick={() => navigate('/login')}
+                variant="primary"
+              >
+                Back to Login
+              </CustomButton>
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
-  // Calculate elapsed days since joining
-  const joinedDate = new Date(userData.joinedDate);
+  if (!userData) {
+    return (
+      <Layout title="Dashboard">
+        <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+          <User className="h-16 w-16 text-muted-foreground" />
+          <div className="text-center space-y-2">
+            <h2 className="text-xl font-semibold">No user data found</h2>
+            <p className="text-muted-foreground">Please contact support for assistance.</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  // Calculate values for stats boxes, set to 0 if payment_status is false
+  const paymentStatus = userData.payment_status !== false;
+  const joinedDate = new Date(userData.joinedDate || new Date());
   const currentDate = new Date();
-  const elapsedDays = Math.floor((currentDate.getTime() - joinedDate.getTime()) / (1000 * 60 * 60 * 24));
-  
-  // Calculate remaining days (730 total - elapsed)
-  const remainingDays = Math.max(0, 730 - elapsedDays);
-  
-  // Calculate total earnings (Plan Amount / 10000 x elapsed days x 40)
-  const totalEarnings = (userData.planAmount / 10000) * elapsedDays * 40;
-  
-  // Calculate remaining amount (Plan Amount / 10000 x remaining days x 40)
-  const remainingAmount = (userData.planAmount / 10000) * remainingDays * 40;
-  
-  // Calculate total team (all levels)
-  const totalTeam = Object.values(userData.downline).reduce((total, level) => total + level.length, 0);
-  
-  // Calculate available balance (total earnings minus any withdrawals - using mock for now)
-  const availableBalance = totalEarnings * 0.8; // 80% of total earnings available for withdrawal
+  const elapsedDays = paymentStatus ? Math.floor((currentDate.getTime() - joinedDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+  const remainingDays = paymentStatus ? Math.max(0, 730 - elapsedDays) : 0;
+  const totalEarnings = paymentStatus ? (userData.planAmount || 50000) / 10000 * elapsedDays * 40 : 0;
+  const remainingAmount = paymentStatus ? (userData.planAmount || 50000) / 10000 * remainingDays * 40 : 0;
+  const totalTeam = paymentStatus && userData.downline ? Object.values(userData.downline).reduce((total, level) => total + level.length, 0) : 0;
+  const availableBalance = paymentStatus ? totalEarnings * 0.8 : 0;
   
   // Determine rank based on team size
   const getRank = (teamSize: number) => {
@@ -202,38 +349,75 @@ export const Dashboard = () => {
     setIsWithdrawalModalOpen(false);
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'approved': return 'success';
-      case 'pending': return 'warning';
-      case 'rejected': return 'destructive';
-      default: return 'secondary';
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/login');
+      toast({
+        title: "Logged out successfully",
+        description: "You have been logged out of your account",
+      });
+    } catch (error) {
+      toast({
+        title: "Logout failed",
+        description: "There was an error logging out. Please try again.",
+        variant: "destructive"
+      });
     }
   };
+
+  const copyReferralCode = () => {
+    navigator.clipboard.writeText(userData.referralCode || userData.firebase_uid);
+    toast({
+      title: "Referral code copied!",
+      description: "Your referral code has been copied to clipboard",
+    });
+  };
+
+  const planAmountDisplay = paymentStatus ? (userData.planAmount || 50000) : 0;
 
   return (
     <Layout>
       <div className="space-y-6">
+        {/* Header with Logout */}
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <CustomButton 
+            variant="outline" 
+            onClick={handleLogout}
+            className="flex items-center gap-2"
+          >
+            <LogOut className="h-4 w-4" />
+            Logout
+          </CustomButton>
+        </div>
+
         {/* Welcome Section */}
         <Card className="bg-gradient-to-r from-primary/10 to-primary-glow/10 border-primary/20">
           <CardContent className="pt-6">
             <div className="space-y-4">
-              <h1 className="text-2xl font-bold">Welcome, {userData.name}!</h1>
+              <h2 className="text-2xl font-bold">Welcome, {userData.name}!</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                 <div className="flex items-center space-x-2">
                   <Hash className="h-4 w-4 text-primary" />
                   <span className="font-medium">Your Code:</span>
-                  <code className="bg-accent px-2 py-1 rounded">{userData.referralCode}</code>
+                  <code 
+                    className="bg-accent px-2 py-1 rounded cursor-pointer hover:bg-accent/80 transition-colors"
+                    onClick={() => navigator.clipboard.writeText(userData.referralCode || '')}
+                    title="Click to copy"
+                  >
+                    {userData.referralCode || 'N/A'}
+                  </code>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Hash className="h-4 w-4 text-primary" />
+                  <span className="font-medium">Reference code:</span>
+                  <span>{userData.reference_code ? userData.reference_code : 'N/A'}</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <User className="h-4 w-4 text-primary" />
                   <span className="font-medium">Referred by:</span>
-                  <span>{userData.referredBy.name}</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Hash className="h-4 w-4 text-primary" />
-                  <span className="font-medium">Referrer Code:</span>
-                  <code className="bg-accent px-2 py-1 rounded">{userData.referredBy.code}</code>
+                  <span>{typeof userData.referredBy === 'object' ? userData.referredBy?.name : (userData.referredBy || 'N/A')}</span>
                 </div>
               </div>
             </div>
@@ -253,6 +437,9 @@ export const Dashboard = () => {
                       ? 'Your documents are under review. You\'ll be notified once approved.'
                       : 'Please complete your KYC verification to start earning.'}
                   </p>
+                  {!paymentStatus && (
+                    <CustomButton variant="primary" className="mt-4">Complete Payment</CustomButton>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -271,13 +458,14 @@ export const Dashboard = () => {
               <p className="text-xs text-muted-foreground">Ready for withdrawal</p>
             </CardContent>
           </Card>
+          
           <Card className="bg-gradient-to-br from-card to-primary/5 border-primary/20">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Plan Amount</CardTitle>
               <DollarSign className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-primary">₹{userData.planAmount.toLocaleString()}</div>
+              <div className="text-2xl font-bold text-primary">₹{planAmountDisplay.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground">Initial investment</p>
             </CardContent>
           </Card>
@@ -358,35 +546,63 @@ export const Dashboard = () => {
                     <>
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-medium">Name:</span>
-                        <input className="input input-bordered input-sm w-40" value={editPersonal.name} onChange={e => setEditPersonal(v => ({...v, name: e.target.value}))} />
+                        <Input 
+                          className="w-40" 
+                          value={editPersonal.name} 
+                          onChange={e => setEditPersonal(v => ({...v, name: e.target.value}))} 
+                        />
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-medium">Mobile:</span>
-                        <input className="input input-bordered input-sm w-40" value={editPersonal.mobile} onChange={e => setEditPersonal(v => ({...v, mobile: e.target.value}))} />
+                        <Input 
+                          className="w-40" 
+                          value={editPersonal.mobile} 
+                          onChange={e => setEditPersonal(v => ({...v, mobile: e.target.value}))} 
+                        />
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-medium">Email:</span>
-                        <input className="input input-bordered input-sm w-40" value={editPersonal.email} onChange={e => setEditPersonal(v => ({...v, email: e.target.value}))} />
+                        <Input 
+                          className="w-40" 
+                          value={editPersonal.email} 
+                          onChange={e => setEditPersonal(v => ({...v, email: e.target.value}))} 
+                        />
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-medium">Sex:</span>
-                        <input className="input input-bordered input-sm w-40" value={editPersonal.sex} onChange={e => setEditPersonal(v => ({...v, sex: e.target.value}))} />
+                        <Input 
+                          className="w-40" 
+                          value={editPersonal.sex} 
+                          onChange={e => setEditPersonal(v => ({...v, sex: e.target.value}))} 
+                        />
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-medium">State:</span>
-                        <input className="input input-bordered input-sm w-40" value={editPersonal.state} onChange={e => setEditPersonal(v => ({...v, state: e.target.value}))} />
+                        <Input 
+                          className="w-40" 
+                          value={editPersonal.state} 
+                          onChange={e => setEditPersonal(v => ({...v, state: e.target.value}))} 
+                        />
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-medium">District:</span>
-                        <input className="input input-bordered input-sm w-40" value={editPersonal.district} onChange={e => setEditPersonal(v => ({...v, district: e.target.value}))} />
+                        <Input 
+                          className="w-40" 
+                          value={editPersonal.district} 
+                          onChange={e => setEditPersonal(v => ({...v, district: e.target.value}))} 
+                        />
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-medium">Pin Code:</span>
-                        <input className="input input-bordered input-sm w-40" value={editPersonal.pinCode} onChange={e => setEditPersonal(v => ({...v, pinCode: e.target.value}))} />
+                        <Input 
+                          className="w-40" 
+                          value={editPersonal.pinCode} 
+                          onChange={e => setEditPersonal(v => ({...v, pinCode: e.target.value}))} 
+                        />
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-medium">Joining Date:</span>
-                        <span>{new Date(userData.joinedDate).toLocaleDateString()}</span>
+                        <span>{new Date(userData.joinedDate || new Date()).toLocaleDateString()}</span>
                       </div>
                       <div className="flex gap-2 justify-end">
                         <CustomButton size="sm" variant="outline" onClick={() => setEditingSection(null)}>Cancel</CustomButton>
@@ -425,7 +641,7 @@ export const Dashboard = () => {
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-medium">Joining Date:</span>
-                        <span>{new Date(userData.joinedDate).toLocaleDateString()}</span>
+                        <span>{new Date(userData.joinedDate || new Date()).toLocaleDateString()}</span>
                       </div>
                     </>
                   )}
@@ -448,19 +664,35 @@ export const Dashboard = () => {
                     <>
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-medium">Bank Name:</span>
-                        <input className="input input-bordered input-sm w-40" value={editBank.bankName} onChange={e => setEditBank(v => ({...v, bankName: e.target.value}))} />
+                        <Input 
+                          className="w-40" 
+                          value={editBank.bankName} 
+                          onChange={e => setEditBank(v => ({...v, bankName: e.target.value}))} 
+                        />
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-medium">A/C No.:</span>
-                        <input className="input input-bordered input-sm w-40" value={editBank.accountNumber} onChange={e => setEditBank(v => ({...v, accountNumber: e.target.value}))} />
+                        <Input 
+                          className="w-40" 
+                          value={editBank.accountNumber} 
+                          onChange={e => setEditBank(v => ({...v, accountNumber: e.target.value}))} 
+                        />
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-medium">IFSC Code:</span>
-                        <input className="input input-bordered input-sm w-40" value={editBank.ifscCode} onChange={e => setEditBank(v => ({...v, ifscCode: e.target.value}))} />
+                        <Input 
+                          className="w-40" 
+                          value={editBank.ifscCode} 
+                          onChange={e => setEditBank(v => ({...v, ifscCode: e.target.value}))} 
+                        />
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-medium">Branch Name:</span>
-                        <input className="input input-bordered input-sm w-40" value={editBank.branchName} onChange={e => setEditBank(v => ({...v, branchName: e.target.value}))} />
+                        <Input 
+                          className="w-40" 
+                          value={editBank.branchName} 
+                          onChange={e => setEditBank(v => ({...v, branchName: e.target.value}))} 
+                        />
                       </div>
                       <div className="flex gap-2 justify-end">
                         <CustomButton size="sm" variant="outline" onClick={() => setEditingSection(null)}>Cancel</CustomButton>
@@ -471,19 +703,19 @@ export const Dashboard = () => {
                     <>
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-medium">Bank Name:</span>
-                        <span className="text-right text-sm">{userData.bankDetails.bankName}</span>
+                        <span className="text-right text-sm">{userData.bankDetails?.bankName}</span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-medium">A/C No.:</span>
-                        <span className="text-right text-sm font-mono">{userData.bankDetails.accountNumber}</span>
+                        <span className="text-right text-sm font-mono">{userData.bankDetails?.accountNumber}</span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-medium">IFSC Code:</span>
-                        <span className="text-right text-sm font-mono">{userData.bankDetails.ifscCode}</span>
+                        <span className="text-right text-sm font-mono">{userData.bankDetails?.ifscCode}</span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-medium">Branch Name:</span>
-                        <span className="text-right text-sm">{userData.bankDetails.branchName}</span>
+                        <span className="text-right text-sm">{userData.bankDetails?.branchName}</span>
                       </div>
                     </>
                   )}
@@ -497,56 +729,62 @@ export const Dashboard = () => {
                   <CardDescription>Manage your account and earnings</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <Dialog open={isWithdrawalModalOpen} onOpenChange={setIsWithdrawalModalOpen}>
-                    <DialogTrigger asChild>
-                      <CustomButton variant="primary" className="w-full">
-                        <Download className="h-4 w-4" />
-                        Request Withdrawal
-                      </CustomButton>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Request Withdrawal</DialogTitle>
-                        <DialogDescription>
-                          Enter the amount you want to withdraw. Your available balance is ₹{availableBalance.toLocaleString()}.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="grid gap-4 py-4">
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="amount" className="text-right">
-                            Amount
-                          </Label>
-                          <Input
-                            id="amount"
-                            type="number"
-                            placeholder="Enter amount"
-                            value={withdrawalAmount}
-                            onChange={(e) => setWithdrawalAmount(e.target.value)}
-                            max={availableBalance}
-                            className="col-span-3"
-                          />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label className="text-right text-sm text-muted-foreground">
-                            Max Amount:
-                          </Label>
-                          <span className="col-span-3 text-sm font-medium">₹{availableBalance.toLocaleString()}</span>
-                        </div>
-                      </div>
-                      <DialogFooter>
-                        <CustomButton 
-                          variant="outline" 
-                          onClick={() => setIsWithdrawalModalOpen(false)}
-                        >
-                          Cancel
-                        </CustomButton>
-                        <CustomButton onClick={handleWithdrawalRequest}>
+                  {userData.payment_status === true ? (
+                    <CustomButton variant="success" className="w-full bg-green-600 text-white hover:bg-green-700">
+                      Complete Payment
+                    </CustomButton>
+                  ) : (
+                    <Dialog open={isWithdrawalModalOpen} onOpenChange={setIsWithdrawalModalOpen}>
+                      <DialogTrigger asChild>
+                        <CustomButton variant="primary" className="w-full">
+                          <Download className="h-4 w-4" />
                           Request Withdrawal
                         </CustomButton>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                  <CustomButton variant="outline" className="w-full">
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Request Withdrawal</DialogTitle>
+                          <DialogDescription>
+                            Enter the amount you want to withdraw. Your available balance is ₹{availableBalance.toLocaleString()}.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                          <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="amount" className="text-right">
+                              Amount
+                            </Label>
+                            <Input
+                              id="amount"
+                              type="number"
+                              placeholder="Enter amount"
+                              value={withdrawalAmount}
+                              onChange={(e) => setWithdrawalAmount(e.target.value)}
+                              max={availableBalance}
+                              className="col-span-3"
+                            />
+                          </div>
+                          <div className="grid grid-cols-4 items-center gap-4">
+                            <Label className="text-right text-sm text-muted-foreground">
+                              Max Amount:
+                            </Label>
+                            <span className="col-span-3 text-sm font-medium">₹{availableBalance.toLocaleString()}</span>
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <CustomButton 
+                            variant="outline" 
+                            onClick={() => setIsWithdrawalModalOpen(false)}
+                          >
+                            Cancel
+                          </CustomButton>
+                          <CustomButton onClick={handleWithdrawalRequest}>
+                            Request Withdrawal
+                          </CustomButton>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  )}
+                  <CustomButton variant="outline" className="w-full" onClick={copyReferralCode}>
                     <Share2 className="h-4 w-4" />
                     Share Referral Link
                   </CustomButton>
@@ -559,7 +797,7 @@ export const Dashboard = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Render all 7 levels */}
               {[1,2,3,4,5,6,7].map((level) => {
-                const members = userData.downline[`level${level}` as keyof typeof userData.downline] as Array<{ id: string; name: string }>;
+                const members = userData.downline?.[`level${level}` as keyof typeof userData.downline] as Array<{ id: string; name: string }> || [];
                 return (
                   <Card key={level}>
                     <CardHeader>
@@ -575,7 +813,12 @@ export const Dashboard = () => {
                         ) : (
                           members.map((member) => (
                             <div key={member.id} className="p-3 bg-accent/30 rounded-lg">
-                              <p className="font-medium">{member.name}</p>
+                              <div className="flex justify-between items-center">
+                                <p className="font-medium">{member.name}</p>
+                                <Badge variant="outline" className="text-xs">
+                                  ID: {member.id}
+                                </Badge>
+                              </div>
                             </div>
                           ))
                         )}
@@ -590,22 +833,79 @@ export const Dashboard = () => {
           <TabsContent value="history" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>History</CardTitle>
-                <CardDescription>All transactions</CardDescription>
+                <CardTitle>Transaction History</CardTitle>
+                <CardDescription>All your transactions and activities</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {/* Mock history data */}
-                  {[
-                    { id: 1, amount: 5000, status: '+', date: '2024-07-15' },
-                    { id: 2, amount: 2500, status: '-', date: '2024-07-20' },
-                    { id: 3, amount: 3000, status: '-', date: '2024-07-22' },
-                  ].map((item) => (
-                    <div key={item.id} className="flex justify-between items-center p-4 border rounded-lg">
-                      <span className="font-semibold">{item.date}</span>
-                      <span className={`font-semibold ${item.status === '+' ? 'text-success' : 'text-destructive'}`}>{item.status}{' '}₹{item.amount.toLocaleString()}</span>
+                  {/* Registration Entry */}
+                  <div className="flex justify-between items-center p-4 border rounded-lg bg-success/5 border-success/20">
+                    <div className="flex items-center space-x-3">
+                      <UserCheck className="h-5 w-5 text-success" />
+                      <div>
+                        <p className="font-semibold">Account Registration</p>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(userData.joinedDate || new Date()).toLocaleDateString()}
+                        </p>
+                      </div>
                     </div>
-                  ))}
+                    <Badge className="bg-success text-success-foreground">
+                      Completed
+                    </Badge>
+                  </div>
+
+                  {/* KYC Status */}
+                  <div className={`flex justify-between items-center p-4 border rounded-lg ${
+                    userData.kycStatus === 'approved' ? 'bg-success/5 border-success/20' : 
+                    userData.kycStatus === 'pending' ? 'bg-warning/5 border-warning/20' : 
+                    'bg-destructive/5 border-destructive/20'
+                  }`}>
+                    <div className="flex items-center space-x-3">
+                      <UserCheck className={`h-5 w-5 ${
+                        userData.kycStatus === 'approved' ? 'text-success' : 
+                        userData.kycStatus === 'pending' ? 'text-warning' : 
+                        'text-destructive'
+                      }`} />
+                      <div>
+                        <p className="font-semibold">KYC Verification</p>
+                        <p className="text-sm text-muted-foreground">
+                          Identity verification process
+                        </p>
+                      </div>
+                    </div>
+                    <Badge className={
+                      userData.kycStatus === 'approved' ? 'bg-success text-success-foreground' : 
+                      userData.kycStatus === 'pending' ? 'bg-warning text-warning-foreground' : 
+                      'bg-destructive text-destructive-foreground'
+                    }>
+                      {userData.kycStatus?.charAt(0).toUpperCase() + userData.kycStatus?.slice(1) || 'Pending'}
+                    </Badge>
+                  </div>
+
+                  {/* Referral Info if available */}
+                  {userData.referredBy?.code && (
+                    <div className="flex justify-between items-center p-4 border rounded-lg bg-primary/5 border-primary/20">
+                      <div className="flex items-center space-x-3">
+                        <Network className="h-5 w-5 text-primary" />
+                        <div>
+                          <p className="font-semibold">Joined via Referral</p>
+                          <p className="text-sm text-muted-foreground">
+                            Referred by: {typeof userData.referredBy === 'object' ? userData.referredBy?.name : (userData.referredBy || 'N/A')}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge className="bg-primary text-primary-foreground">
+                        Code: {isCodeObj(userData.referredBy) ? userData.referredBy.code : 'N/A'}
+                      </Badge>
+                    </div>
+                  )}
+
+                  {/* Placeholder for future transactions */}
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Clock className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>No transactions yet</p>
+                    <p className="text-sm">Your earning and withdrawal history will appear here</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
