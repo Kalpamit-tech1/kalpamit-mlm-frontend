@@ -99,7 +99,7 @@ export const Dashboard = () => {
       // First, let's try to ping the server to check if it's accessible
       console.log('🏓 Pinging server...');
       
-      const response = await fetch(`https://mlm-backend-f0h4.onrender.com/user_data/${firebaseUid}`, {
+      const response = await fetch(`https://fastapi-example-production-8fea.up.railway.app/user_data/${firebaseUid}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -217,7 +217,7 @@ export const Dashboard = () => {
     if (selectedTab === "team" && !teamDownline && currentUser) {
       setTeamLoading(true);
       setTeamError(null);
-      fetch(`https://mlm-backend-f0h4.onrender.com/team?firebase_uid=${currentUser.uid}`)
+      fetch(`https://fastapi-example-production-8fea.up.railway.app/team?firebase_uid=${currentUser.uid}`)
         .then(async (res) => {
           if (!res.ok) {
             const errorData = await res.json().catch(() => ({}));
@@ -355,36 +355,112 @@ export const Dashboard = () => {
     return { name: 'Bronze', color: 'bg-orange-500 text-orange-900' };
   };
 
-  const handleWithdrawalRequest = () => {
-    const amount = parseFloat(withdrawalAmount);
-    if (isNaN(amount) || amount <= 0) {
-      toast({
-        title: "Invalid Amount",
-        description: "Please enter a valid withdrawal amount",
-        variant: "destructive"
-      });
-      return;
-    }
+  // const handleWithdrawalRequest = () => {
+  //   const amount = parseFloat(withdrawalAmount);
+  //   if (isNaN(amount) || amount <= 0) {
+  //     toast({
+  //       title: "Invalid Amount",
+  //       description: "Please enter a valid withdrawal amount",
+  //       variant: "destructive"
+  //     });
+  //     return;
+  //   }
     
-    if (amount > availableBalance) {
-      toast({
-        title: "Insufficient Balance",
-        description: `Maximum withdrawable amount is ₹${availableBalance.toLocaleString()}`,
-        variant: "destructive"
-      });
-      return;
+  //   if (amount > availableBalance) {
+  //     toast({
+  //       title: "Insufficient Balance",
+  //       description: `Maximum withdrawable amount is ₹${availableBalance.toLocaleString()}`,
+  //       variant: "destructive"
+  //     });
+  //     return;
+  //   }
+
+  //   // Simulate withdrawal request
+  //   toast({
+  //     title: "Withdrawal Requested",
+  //     description: `Your withdrawal request for ₹${amount.toLocaleString()} has been submitted.`,
+  //     variant: "default"
+  //   });
+    
+  //   setWithdrawalAmount('');
+  //   setIsWithdrawalModalOpen(false);
+  // };
+
+  const handleWithdrawalRequest = async () => {
+  const amount = parseFloat(withdrawalAmount);
+  if (isNaN(amount) || amount <= 0) {
+    toast({
+      title: "Invalid Amount",
+      description: "Please enter a valid withdrawal amount",
+      variant: "destructive"
+    });
+    return;
+  }
+  
+  if (amount > availableBalance) {
+    toast({
+      title: "Insufficient Balance",
+      description: `Maximum withdrawable amount is ₹${availableBalance.toLocaleString()}`,
+      variant: "destructive"
+    });
+    return;
+  }
+
+  try {
+    // Show loading state
+    toast({
+      title: "Processing Request",
+      description: "Please wait while we process your withdrawal request...",
+    });
+
+    const response = await fetch('https://fastapi-example-production-8fea.up.railway.app/withdrawal_request', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      mode: 'cors',
+      body: JSON.stringify({
+        firebase_uid: currentUser?.uid,
+        amount: amount
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `HTTP ${response.status}: Failed to submit withdrawal request`);
     }
 
-    // Simulate withdrawal request
+    const result = await response.json();
+    console.log('✅ Withdrawal request submitted:', result);
+
+    // Success notification
     toast({
       title: "Withdrawal Requested",
-      description: `Your withdrawal request for ₹${amount.toLocaleString()} has been submitted.`,
+      description: `Your withdrawal request for ₹${amount.toLocaleString()} has been submitted successfully.`,
       variant: "default"
     });
     
     setWithdrawalAmount('');
     setIsWithdrawalModalOpen(false);
-  };
+
+  } catch (error) {
+    console.error('💥 Failed to submit withdrawal request:', error);
+    
+    let errorMessage = error.message;
+    
+    // Handle specific error types
+    if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+      errorMessage = 'Network error: Unable to connect to server. Please check your internet connection and try again.';
+    }
+    
+    toast({
+      title: "Withdrawal Request Failed",
+      description: errorMessage,
+      variant: "destructive"
+    });
+  }
+};
 
   const handleLogout = async () => {
     try {

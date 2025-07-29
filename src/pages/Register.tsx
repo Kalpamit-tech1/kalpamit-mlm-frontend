@@ -55,7 +55,7 @@ export const Register = () => {
     try {
       console.log('🚀 Sending data to backend:', userData);
       
-      const response = await fetch('https://mlm-backend-f0h4.onrender.com/user_data', {
+      const response = await fetch('https://fastapi-example-production-8fea.up.railway.app/user_data', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
